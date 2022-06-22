@@ -129,6 +129,9 @@ class pdsp::StoppingMuFilter : public art::EDFilter {
     int run;
     int subRun;
     int event;
+    std::vector<int>*    trackNHitsPlane0                          = nullptr;
+    std::vector<int>*    trackNHitsPlane1                          = nullptr;
+    std::vector<int>*    trackNHitsPlane2                          = nullptr;
     std::vector<double>* trackStartX                               = nullptr;
     std::vector<double>* trackStartY                               = nullptr;
     std::vector<double>* trackStartZ                               = nullptr;
@@ -169,21 +172,20 @@ class pdsp::StoppingMuFilter : public art::EDFilter {
     ::util::FiducialVolume _fidVolOuter;
     ::util::FiducialVolume _fidVolInner;
     ::util::SelectionCuts  _selCuts;
-    int isData;
+    int  isData;
     bool isPass;
-
-    // calibration parameters
-    protoana::ProtoDUNECalibration calibUtil;
+    int  hitItP0;
+    int  hitItP1;
+    int  hitItP2;
 
 };
 
 
 pdsp::StoppingMuFilter::StoppingMuFilter(fhicl::ParameterSet const& p)
   : EDFilter{p}//,
-    //calibUtil(p.get<fhicl::ParameterSet>("CalibrationPars"))
 {
-  fhicl::ParameterSet const pLabels  = p.get< fhicl::ParameterSet  >("ProducerLabels");
-  fhicl::ParameterSet const pCuts    = p.get< fhicl::ParameterSet  >("CutValues");
+  fhicl::ParameterSet const pLabels  = p.get< fhicl::ParameterSet >("ProducerLabels");
+  fhicl::ParameterSet const pCuts    = p.get< fhicl::ParameterSet >("CutValues");
   fhicl::ParameterSet const pOuterFV = p.get< fhicl::ParameterSet >("OuterFV");
   fhicl::ParameterSet const pTpcFV   = p.get< fhicl::ParameterSet >("TpcFV");
   fhicl::ParameterSet const pInnerFV = p.get< fhicl::ParameterSet >("InnerFV");
@@ -481,27 +483,15 @@ bool pdsp::StoppingMuFilter::filter(art::Event& e)
             // calibrate dqdx points
             std::vector< float > trackdQdx = thisCalo->dQdx();
             std::vector< float > trackdEdx = thisCalo->dEdx();
-//            std::vector< float > trackdEdx = calibUtil.GetCalibratedCalorimetry(*thisTrack.get(),
-//                                                                                e,
-//                                                                                fTrackLabel,
-//                                                                                fCalorimetryLabel,
-//                                                                                thisCalo->PlaneID().Plane,
-//                                                                                0.);
 
             // first deal with getting the stuff for association creation
             calorimetryForCollection.fdQdx = trackdQdx;
             calorimetryForCollection.fdEdx = trackdEdx;
 
-            std::cout << "pushing back to vector..." << std::endl;
             calorimetryCollection->push_back(calorimetryForCollection);
-
-            std::cout << "making pointer" << std::endl;
             art::Ptr< anab::Calorimetry > calorimetryForCollectionPtr = makeCalorimetryPtr(calorimetryCollection->size() -1);
-
-            std::cout << "pushing back to vector again" << std::endl;
             calorimetryPtrCollection.push_back(calorimetryForCollectionPtr);
 
-            std::cout << "save to tree" << std::endl;
             // and now fill stuff for the output tree
             if (thisCalo->PlaneID().Plane == 0){
               trackdEdxByHitPlane0     ->push_back(calorimetryForCollection.dEdx());
@@ -524,13 +514,24 @@ bool pdsp::StoppingMuFilter::filter(art::Event& e)
 
           }
 
-          std::cout << "creating association" << std::endl;
-          util::CreateAssn(e, trackForCollectionPtr, calorimetryPtrCollection, *trackCalorimetryAssn); 
 
+          util::CreateAssn(e, trackForCollectionPtr, calorimetryPtrCollection, *trackCalorimetryAssn); 
           std::vector< art::Ptr<recob::Hit> >hitPtrCollection;
 
           // now get hit information for creating the associations
+
+          hitItP0 = 0;
+          hitItP1 = 0;
+          hitItP2 = 0;
           for (size_t iH = 0; iH < theseHits.size(); iH++){
+
+            if (theseHits[iH]->View() == 0)
+              hitItP0++; 
+            if (theseHits[iH]->View() == 1)
+              hitItP1++; 
+            if (theseHits[iH]->View() == 2)
+              hitItP2++; 
+
             hitCollection->push_back(*((theseHits.at(iH)).get()));
             art::Ptr<recob::Hit> hitForCollectionPtr = makeHitPtr(hitCollection->size() -1);
             hitPtrCollection.push_back(hitForCollectionPtr);
@@ -545,6 +546,10 @@ bool pdsp::StoppingMuFilter::filter(art::Event& e)
               util::CreateAssn(e, spacePointForCollectionPtr, hitForCollectionPtr, *hitSpacePointAssn); 
             }
           }
+
+          trackNHitsPlane0->push_back(hitItP0);
+          trackNHitsPlane1->push_back(hitItP1);
+          trackNHitsPlane2->push_back(hitItP2);
 
           util::CreateAssn(e, trackForCollectionPtr, pfpForCollectionPtr  , *pfpTrackAssn);
           util::CreateAssn(e, trackForCollectionPtr, hitPtrCollection     , *trackHitAssn);
@@ -598,19 +603,21 @@ void pdsp::StoppingMuFilter::beginJob()
   anaTree->Branch("run"                      , &run);
   anaTree->Branch("subRun"                   , &subRun);
   anaTree->Branch("event"                    , &event);
-  anaTree->Branch("trackStartX"              , "std::vector<double>" , &trackStartX);
-  anaTree->Branch("trackStartY"              , "std::vector<double>" , &trackStartY);
-  anaTree->Branch("trackStartZ"              , "std::vector<double>" , &trackStartZ);
-  anaTree->Branch("trackEndX"                , "std::vector<double>" , &trackEndX);
-  anaTree->Branch("trackEndY"                , "std::vector<double>" , &trackEndY);
-  anaTree->Branch("trackEndZ"                , "std::vector<double>" , &trackEndZ);
-  anaTree->Branch("trackStartXSCECorr"       , "std::vector<double>" , &trackStartXSCECorr);
-  anaTree->Branch("trackStartYSCECorr"       , "std::vector<double>" , &trackStartYSCECorr);
-  anaTree->Branch("trackStartZSCECorr"       , "std::vector<double>" , &trackStartZSCECorr);
-  anaTree->Branch("trackEndXSCECorr"         , "std::vector<double>" , &trackEndXSCECorr);
-  anaTree->Branch("trackEndYSCECorr"         , "std::vector<double>" , &trackEndYSCECorr);
-  anaTree->Branch("trackEndZSCECorr"         , "std::vector<double>" , &trackEndZSCECorr);
-
+  anaTree->Branch("trackNHitsPlane0"         , "std::vector<int>"                     , &trackNHitsPlane0);
+  anaTree->Branch("trackNHitsPlane1"         , "std::vector<int>"                     , &trackNHitsPlane1);
+  anaTree->Branch("trackNHitsPlane2"         , "std::vector<int>"                     , &trackNHitsPlane2);
+  anaTree->Branch("trackStartX"              , "std::vector<double>"                  , &trackStartX);
+  anaTree->Branch("trackStartY"              , "std::vector<double>"                  , &trackStartY);
+  anaTree->Branch("trackStartZ"              , "std::vector<double>"                  , &trackStartZ);
+  anaTree->Branch("trackEndX"                , "std::vector<double>"                  , &trackEndX);
+  anaTree->Branch("trackEndY"                , "std::vector<double>"                  , &trackEndY);
+  anaTree->Branch("trackEndZ"                , "std::vector<double>"                  , &trackEndZ);
+  anaTree->Branch("trackStartXSCECorr"       , "std::vector<double>"                  , &trackStartXSCECorr);
+  anaTree->Branch("trackStartYSCECorr"       , "std::vector<double>"                  , &trackStartYSCECorr);
+  anaTree->Branch("trackStartZSCECorr"       , "std::vector<double>"                  , &trackStartZSCECorr);
+  anaTree->Branch("trackEndXSCECorr"         , "std::vector<double>"                  , &trackEndXSCECorr);
+  anaTree->Branch("trackEndYSCECorr"         , "std::vector<double>"                  , &trackEndYSCECorr);
+  anaTree->Branch("trackEndZSCECorr"         , "std::vector<double>"                  , &trackEndZSCECorr);
   anaTree->Branch("trackLength"              , "std::vector<double>"                  , &trackLength);
   anaTree->Branch("trackTheta"               , "std::vector<double>"                  , &trackTheta);
   anaTree->Branch("trackPhi"                 , "std::vector<double>"                  , &trackPhi);
@@ -618,9 +625,10 @@ void pdsp::StoppingMuFilter::beginJob()
   anaTree->Branch("trackZenith"              , "std::vector<double>"                  , &trackZenith);
   anaTree->Branch("trackThetaXZ"             , "std::vector<double>"                  , &trackThetaXZ);
   anaTree->Branch("trackThetaYZ"             , "std::vector<double>"                  , &trackThetaYZ);
-  anaTree->Branch("trackHitMinPeakTime"      , "std::vector< int >"                   , &trackHitMinPeakTime);
   anaTree->Branch("trackMinDistLen"          , "std::vector< std::vector< double > >" , &trackMinDistLen);
   anaTree->Branch("trackMinDistAngle"        , "std::vector< std::vector< double > >" , &trackMinDistAngle);
+
+  anaTree->Branch("trackHitMinPeakTime"      , "std::vector< int >"                   , &trackHitMinPeakTime);
   anaTree->Branch("trackdEdxByHitPlane0"     , "std::vector< std::vector< float > >"  , &trackdEdxByHitPlane0);
   anaTree->Branch("trackdQdxByHitPlane0uncal", "std::vector< std::vector< float > >"  , &trackdQdxByHitPlane0uncal);
   anaTree->Branch("trackdQdxByHitPlane0"     , "std::vector< std::vector< float > >"  , &trackdQdxByHitPlane0);
@@ -638,6 +646,9 @@ void pdsp::StoppingMuFilter::beginJob()
 
 void pdsp::StoppingMuFilter::clearVectors()
 {
+  trackNHitsPlane0          -> resize(0);
+  trackNHitsPlane1          -> resize(0); 
+  trackNHitsPlane2          -> resize(0);
   trackStartX               -> resize(0);
   trackStartY               -> resize(0);
   trackStartZ               -> resize(0);
