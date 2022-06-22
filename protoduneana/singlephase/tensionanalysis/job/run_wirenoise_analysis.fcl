@@ -1,0 +1,57 @@
+#include "messageservice.fcl"
+#include "services_dune.fcl"
+#include "config_wirenoise_analysis_producerlabels.fcl"
+#include "config_wirenoise_analysis_cutvalues.fcl"
+#include "protoDUNE_reco_data_Dec2018.fcl"
+
+process_name: wirenoiseana
+
+services:
+{
+  TFileService: {fileName: "wirenoiseana.root"}
+  IFBeam      : {}
+  message     : @local::standard_info
+                @table::protodune_services
+                @table::protodune_rawdecoding_services
+} # services
+
+source:
+{
+  module_type: RootInput
+  inputCommands: [ "keep *_*_*_*" ]
+} # source
+
+physics:
+{
+  producers:
+  {
+    @table::protoDUNE_rawdecoding_producers
+  }
+  analyzers:
+  {
+    wirenoiseanalysis: 
+    {
+      module_type: "WireNoiseAnalysis"
+      ProducerLabels: @local::wirenoiseanaproducerlabels
+      CutValues:      @local::wirenoiseanacutvalues
+    }
+  } # analyzers
+
+  stream1      :  [ out1 ]
+  produce      :  [ @sequence::protoDUNE_rawdecoding ]
+  analysis     :  [ wirenoiseanalysis ]
+  trigger_paths:  [ produce ]
+  end_paths    :  [ analysis, stream1 ]
+} # physics
+
+outputs:
+{
+  out1:
+  {
+    module_type: RootOutput
+    fileName: "%ifb_%tc_wirenoiseanalysis.root"
+    dataTier: "ana"
+    compressionLevel: 1
+  } # out1
+} # outputs
+

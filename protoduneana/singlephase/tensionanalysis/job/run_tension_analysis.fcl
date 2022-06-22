@@ -1,0 +1,51 @@
+#include "messageservice.fcl"
+#include "services_dune.fcl"
+#include "config_tension_analysis_producerlabels.fcl"
+#include "config_tension_analysis_cutvalues.fcl"
+
+process_name: tensionana
+
+services:
+{
+  TFileService: {fileName: "tensionana.root"}
+  message:               @local::standard_info
+  PdspChannelMapService: @local::pdspchannelmap
+                         @table::protodune_services
+
+} # services
+
+source:
+{
+  module_type: RootInput
+  inputCommands: [ "keep *_*_*_*" ]
+} # source
+
+physics:
+{
+  analyzers:
+  {
+    tensionanalysis: 
+    {
+      module_type: "TensionAnalysis"
+      ProducerLabels: @local::tensionsanaproducerlabels
+      CutValues:      @local::tensionsanacutvalues
+    }
+  } # analyzers
+
+  stream1: [ out1 ]
+  analysis: [ tensionanalysis ]
+  end_paths: [ analysis, stream1 ]
+} # physics
+
+outputs:
+{
+  out1:
+  {
+    module_type: RootOutput
+    fileName: "%ifb_%tc_tensionanalysis.root"
+    dataTier: "ana"
+    compressionLevel: 1
+  } # out1
+} # outputs
+
+services.message.destinations.infomsg.categories.default.limit: 10000000

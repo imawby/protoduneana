@@ -1,0 +1,48 @@
+#include "messageservice.fcl"
+#include "services_dune.fcl"
+#include "config_pulser_analyser_producerlabels.fcl"
+#include "config_pulser_analyser_cutvalues.fcl"
+
+process_name: pulserana
+
+services:
+{
+  TFileService: {fileName: "pulserana.root"}
+  @table::protodune_services
+  message: @local::standard_info
+} # services
+
+source:
+{
+  module_type: RootInput
+  inputCommands: [ "keep *_*_*_*" ]
+} # source
+
+physics:
+{
+  analyzers:
+  {
+    pulseranalysis: 
+    {
+      module_type: "PulserAnalyser"
+      ProducerLabels: @local::pulseranalyserproducerlabels
+      CutValues: @local::pulseranalysercutvalues
+    }
+  } # analyzers
+
+  stream1: [ out1 ]
+  analysis: [ pulseranalysis ]
+  end_paths: [ analysis, stream1 ]
+} # physics
+
+outputs:
+{
+  out1:
+  {
+    module_type: RootOutput
+    fileName: "%ifb_%tc_pulseranalysis.root"
+    dataTier: "ana"
+    compressionLevel: 1
+  } # out1
+} # outputs
+

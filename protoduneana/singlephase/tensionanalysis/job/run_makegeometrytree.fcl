@@ -1,0 +1,45 @@
+#include "messageservice.fcl"
+#include "services_dune.fcl"
+
+process_name: makegeom
+
+services:
+{
+  TFileService: {fileName: "geometry_tree.root"}
+  PdspChannelMapService: @local::pdspchannelmap
+  @table::protodune_services
+  message: @local::standard_info
+} # services
+
+source:
+{
+  module_type: RootInput
+  inputCommands: [ "keep *_*_*_*" ]
+} # source
+
+physics:
+{
+  analyzers:
+  {
+    makegeometryinformation: 
+    {
+      module_type: "MakeGeometryTree"
+    }
+  } # analyzers
+
+  stream1: [ out1 ]
+  analysis: [ makegeometryinformation ]
+  end_paths: [ analysis, stream1 ]
+} # physics
+
+outputs:
+{
+  out1:
+  {
+    module_type: RootOutput
+    fileName: "%ifb_%tc_makegeometryinformation.root"
+    dataTier: "ana"
+    compressionLevel: 1
+  } # out1
+} # outputs
+

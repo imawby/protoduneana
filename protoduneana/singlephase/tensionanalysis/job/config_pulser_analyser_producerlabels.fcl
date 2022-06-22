@@ -1,0 +1,10 @@
+BEGIN_PROLOG
+
+pulseranalyserproducerlabels:
+{
+
+  RawDigitLabel: "tpcrawdecoder:daq:RunRawDecoder"
+  
+}
+
+END_PROLOG

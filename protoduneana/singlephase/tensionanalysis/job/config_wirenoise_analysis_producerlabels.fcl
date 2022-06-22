@@ -1,0 +1,8 @@
+BEGIN_PROLOG
+
+wirenoiseanaproducerlabels:
+{
+  RawDigitLabel: "tpcrawdecoder:daq:wirenoiseana"
+}
+
+END_PROLOG

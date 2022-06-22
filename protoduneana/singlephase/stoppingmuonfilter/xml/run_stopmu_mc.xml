@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+
+<!-- project details -->
+<!DOCTYPE project [
+<!ENTITY release "v08_15_00">
+<!ENTITY exp "dune">
+<!ENTITY name "stopmu_mc">
+<!ENTITY scratch_dir "/pnfs/&exp;/scratch/users/alister1/&name;">
+<!ENTITY resilient_dir "/pnfs/&exp;/resilient/users/alister1/">
+<!ENTITY data_dir "/pnfs/&exp;/scratch/users/alister1/&name;_datadir">
+]>
+
+<job>
+
+  <project name="&name;">
+
+    <!-- project size -->
+    <numevents>100000</numevents>
+
+    <!-- batchOS -->
+    <os>SL6</os>
+
+    <resource>DEDICATED,OPPORTUNISTIC</resource>
+
+    <!-- larsoft info -->
+    <larsoft>
+      <tag>&release;</tag>
+      <qual>e15:prof</qual>
+      <local>/pnfs/dune/resilient/users/alister1/dunetpc_v08_35_00.tar</local>
+    </larsoft>
+
+    <!-- ubxsec -->
+    <stage name="filter">
+      <inputdef>jhugon_mcc11_pd_sp_reco_flf_2.0GeV</inputdef>
+      <fcl>run_stopping_mu_filter.fcl</fcl>
+      <bookdir>&data_dir;</bookdir>
+      <workdir>&resilient_dir;&name;</workdir>
+      <outdir>&scratch_dir;</outdir>
+      <logdir>&scratch_dir;</logdir>
+      <!--<numjobs>10</numjobs>
+      <numevents>10</numevents>
+      <maxfilesperjob>1</maxfilesperjob>-->
+      <numjobs>244</numjobs>
+      <numevents>200</numevents>
+      <maxfilesperjob>1</maxfilesperjob>
+      <memory>4000</memory>
+      <datatier>stopmufilter</datatier>
+      <schema>root</schema>
+    </stage>
+                                                            
+  </project>
+
+</job>

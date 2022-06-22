@@ -1,0 +1,20 @@
+BEGIN_PROLOG
+
+tensionsanaproducerlabels:
+{
+
+  # for dead channel analysis
+  AllHitLabel          : "hitpdune"
+  
+  # all for tension analysis
+  PFPLabel               : "stopmufilter"
+  TrackLabel             : "stopmufilter"
+  TrackHitLabel          : "stopmufilter"
+  CalorimetryLabel       : "stopmufilter"
+  PFPTrackAssnLabel      : "stopmufilter"
+  TrackT0AssnLabel       : "stopmufilter"
+  TrackHitAssnLabel      : "stopmufilter"
+  HitSpacePointAssnLabel : "stopmufilter"
+}
+
+END_PROLOG

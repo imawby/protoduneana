@@ -1,0 +1,44 @@
+#include "messageservice.fcl"
+#include "services_dune.fcl"
+
+process_name: getgeom
+
+services:
+{
+  TFileService: {fileName: "getgeom.root"}
+  @table::protodune_services
+  message: @local::standard_info
+} # services
+
+source:
+{
+  module_type: RootInput
+  inputCommands: [ "keep *_*_*_*" ]
+} # source
+
+physics:
+{
+  analyzers:
+  {
+    getgeometryinformation: 
+    {
+      module_type: "GetGeometryInformation"
+    }
+  } # analyzers
+
+  stream1: [ out1 ]
+  analysis: [ getgeometryinformation ]
+  end_paths: [ analysis, stream1 ]
+} # physics
+
+outputs:
+{
+  out1:
+  {
+    module_type: RootOutput
+    fileName: "%ifb_%tc_getgeometryinformation.root"
+    dataTier: "ana"
+    compressionLevel: 1
+  } # out1
+} # outputs
+

@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+
+<!-- project details -->
+<!DOCTYPE project [
+<!ENTITY release "v09_09_02">
+<!ENTITY runno "5387">
+<!ENTITY defname "protodune-sp_runset_&runno;_reco_v09_09_01_v0">
+<!ENTITY exp "dune">
+<!ENTITY name "stoppingmuonfilter_pdsp_data_2021_run&runno;_nocut">
+<!ENTITY scratch_dir "/pnfs/&exp;/scratch/users/alister1/&name;">
+<!ENTITY resilient_dir "/pnfs/&exp;/resilient/users/alister1/">
+<!ENTITY data_dir "/pnfs/&exp;/scratch/users/alister1/&name;_datadir">
+]>
+
+<job>
+
+  <project name="&name;">
+
+    <!-- project size -->
+    <numevents>100000</numevents>
+
+    <!-- batchOS -->
+    <os>SL7</os>
+
+    <resource>DEDICATED,OPPORTUNISTIC</resource>
+
+    <!-- larsoft info -->
+    <larsoft>
+      <tag>&release;</tag>
+      <qual>e19:prof</qual>
+      <local>/pnfs/dune/scratch/users/alister1/2021-04-21-pdune.tar</local>
+    </larsoft>
+
+    <!-- filter -->
+    <stage name="filter">
+      <inputdef>&defname;</inputdef>
+      <fcl>run_stopping_mu_filter_withallfembfilter.fcl</fcl>
+      <bookdir>&data_dir;</bookdir>
+      <workdir>&resilient_dir;&name;</workdir>
+      <outdir>&scratch_dir;</outdir>
+      <logdir>&scratch_dir;</logdir>
+      <numjobs>30</numjobs>
+      <numevents>10000</numevents>
+      <maxfilesperjob>10</maxfilesperjob>
+      <memory>4000</memory>
+      <datatier>stopmufilter</datatier>
+      <schema>root</schema>
+      <jobsub> --expected-lifetime=16h </jobsub>
+      <jobsub> --lines '+FERMIHTC_AutoRelease=True' </jobsub>
+      <jobsub> --lines '+FERMIHTC_GraceMemory=2048' </jobsub>
+      <jobsub> --lines '+FERMIHTC_GraceLifetime=4h' </jobsub>
+    </stage>
+                                                          
+  </project>
+
+</job>

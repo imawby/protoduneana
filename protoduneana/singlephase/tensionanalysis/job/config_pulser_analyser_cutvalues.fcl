@@ -1,0 +1,12 @@
+BEGIN_PROLOG
+
+pulseranalysercutvalues:
+{
+
+  ADCLimit: 100
+  MakeSingleWirePlot: true
+  SelectedChannelNo: 12000
+
+}
+
+END_PROLOG

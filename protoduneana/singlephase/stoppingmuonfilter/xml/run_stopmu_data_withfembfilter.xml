@@ -1,0 +1,75 @@
+<?xml version="1.0"?>
+
+<!-- project details -->
+<!DOCTYPE project [
+<!ENTITY release "v09_31_00">
+<!ENTITY exp "dune">
+<!ENTITY name "stopmu_data_withfembfilter">
+<!ENTITY ana_name "tensionana_stopmu_data_withfembfilter">
+<!ENTITY scratch_dir "/pnfs/&exp;/scratch/users/alister1/&release;/&name;">
+<!ENTITY resilient_dir "/pnfs/&exp;/resilient/users/alister1/">
+<!ENTITY data_dir "/pnfs/&exp;/scratch/users/alister1/&name;_datadir">
+<!ENTITY ana_scratch_dir "/pnfs/&exp;/scratch/users/alister1/&ana_name;">
+<!ENTITY ana_resilient_dir "/pnfs/&exp;/resilient/users/alister1/">
+<!ENTITY ana_data_dir "/pnfs/&exp;/scratch/users/alister1/&ana_name;_datadir">
+]>
+
+<job>
+
+  <project name="&name;">
+
+    <!-- project size -->
+    <numevents>100000</numevents>
+
+    <!-- batchOS -->
+    <os>SL7</os>
+
+    <resource>DEDICATED,OPPORTUNISTIC</resource>
+
+    <ups>protoduneana</ups>
+
+    <!-- larsoft info -->
+    <larsoft>
+      <tag>&release;</tag>
+      <qual>e20:prof</qual>
+      <local>/pnfs/dune/scratch/users/alister1/dunetpc_v09_31_00.tar</local>
+    </larsoft>
+
+    <!-- filter -->
+    <stage name="filter">
+      <inputdef>protodune-sp_runset_5826_reco2_v09_30_00_v0</inputdef>
+      <fcl>run_stopping_mu_filter_withallfembfilter.fcl</fcl>
+      <bookdir>&data_dir;</bookdir>
+      <workdir>&resilient_dir;&name;</workdir>
+      <outdir>&scratch_dir;</outdir>
+      <logdir>&scratch_dir;</logdir>
+      <numjobs>1028</numjobs>
+      <numevents>1000</numevents>
+      <maxfilesperjob>1</maxfilesperjob>
+      <memory>6000</memory>
+      <datatier>stopmufilter</datatier>
+      <schema>root</schema>
+    </stage>
+ 
+    <!-- tensionana -->
+    <stage name="tensionana">
+      <inputlist>/pnfs/dune/scratch/users/alister1/input.list</inputlist>
+      <fcl>run_tension_analysis.fcl</fcl>
+      <bookdir>&ana_data_dir;</bookdir>
+      <workdir>&resilient_dir;&ana_name;</workdir>
+      <outdir>&ana_scratch_dir;</outdir>
+      <logdir>&ana_scratch_dir;</logdir>
+      <numjobs>1455</numjobs>
+      <numevents>200</numevents>
+      <maxfilesperjob>1</maxfilesperjob>
+      <!--<numjobs>1000</numjobs>
+      <numevents>200</numevents>
+      <maxfilesperjob>1</maxfilesperjob>-->
+      <memory>2000</memory>
+      <datatier>tensionana</datatier>
+      <schema>root</schema>
+    </stage>
+                                                            
+  </project>
+
+</job>

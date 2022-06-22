@@ -1,0 +1,8 @@
+BEGIN_PROLOG
+
+wirenoiseanacutvalues:
+{
+  PlanesToUse: [0, 1, 2]
+}
+
+END_PROLOG

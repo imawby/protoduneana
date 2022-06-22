@@ -1,0 +1,65 @@
+BEGIN_PROLOG
+
+tensionsanacutvalues:
+{
+
+  AngularCuts:
+  {
+    # angular cuts are sepatarated into by the drift direction,
+    # i.e. low x and high x regions
+    # there is also a different theta_xz and theta_yz cut in
+    # each plane, so each of these vectors is
+    # [[plane0lowcut, plane0highcut],[plane1lowcut,plane1highcut],[plane2lowcut,plane2highcut]]
+    # n.b the ThetaXZ cuts are applied with an absolute value
+    # comparison, the same is true for the collection plane
+    # for the ThetaYZ cuts
+    LowX:
+    {
+      ThetaXZ: [[70., 110.], [70., 110.], [70., 110.]]
+      ThetaYZ: [[35., 70.], [-70., -35.], [80., 100.]]
+    }
+    HighX:
+    {
+      ThetaXZ: [[70., 110.], [70., 110.], [70., 110.]]
+      ThetaYZ: [[-70., -35.], [35., 70.], [80., 100.]]
+    }
+  }
+  
+  # do we want to cut on a specific plane for the
+  # theta_xz selection, and if so which do we want to cut on?
+  # For theta_xz they're currently all the same so just cut on
+  # collection
+  IsThetaXZCutInPlane: true
+  ThetaXZPlaneToCutOn: 2
+
+  # do we want to cut on a specific plane for the
+  # theta_xyz selection, and if so which do we want to cut on?
+  # For theta_yz we don't apply this, it's better to do it at
+  # analysis level, but option is here just in case
+  IsThetaYZCutInPlane: false
+  ThetaYZPlaneToCutOn: 2
+
+  BrokenTracksCuts:
+  {
+    TightCuts:
+    {
+      Distance: 30
+      Angle:    0.97
+    }
+    LooseCuts:
+    {
+      Distance: 50
+      Angle: 0.998
+    }
+  }
+
+  IsUseMinDistCut: true
+  IsUseMinHitPeakTimeCut: true
+  HitMinPeakTime: 2000
+
+  MinimumResidualRange: 100.0
+  MaximumResidualRange: 200.0
+
+}
+
+END_PROLOG

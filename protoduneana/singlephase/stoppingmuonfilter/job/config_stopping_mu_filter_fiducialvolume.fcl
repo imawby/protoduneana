@@ -1,0 +1,33 @@
+BEGIN_PROLOG
+
+outerfv:
+{
+  BorderXLow:  20
+  BorderXHigh: 20
+  BorderYLow:  20
+  BorderYHigh: 20
+  BorderZLow:  20
+  BorderZHigh: 20
+}
+
+innerfv:
+{
+  BorderXLow:  50
+  BorderXHigh: 50
+  BorderYLow:  50
+  BorderYHigh: 50
+  BorderZLow:  50
+  BorderZHigh: 50
+}
+
+tpcfv:
+{
+  BorderXLow:  0
+  BorderXHigh: 0
+  BorderYLow:  0
+  BorderYHigh: 0
+  BorderZLow:  5
+  BorderZHigh: 5
+}
+
+END_PROLOG

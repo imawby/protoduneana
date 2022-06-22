@@ -1,0 +1,73 @@
+#include "messageservice.fcl"
+#include "services_dune.fcl"
+#include "config_stopping_mu_filter_producerlabels.fcl"
+#include "config_stopping_mu_filter_cutvalues.fcl"
+#include "config_stopping_mu_filter_fiducialvolume.fcl"
+#include "ProtoDUNEFembFilter.fcl"
+#include "missingproductfilter.fcl"
+#include "ProtoDUNECalibration.fcl"
+
+process_name: StoppingMuFilter
+
+services:
+{
+  TFileService: {fileName: "stoppingmufilter.root"}
+  message:               @local::standard_info
+  FileCatalogMetadata:   @local::art_file_catalog_mc
+                         @table::protodune_services
+  PdspChannelMapService: @local::pdspchannelmap
+
+} # services
+
+source:
+{
+  module_type: RootInput
+  inputCommands: [ "keep *_*_*_*" ]
+} # source
+
+physics:
+{
+  filters:
+  {
+    fembfilter: @local::pdsp_fembfilter_all
+    
+    missingproductfilter: @local::standard_missingproductfilter
+
+    stopmufilter: 
+    {
+      module_type    :  "StoppingMuFilter"
+      ProducerLabels :  @local::stoppingmufilterproducerlabels
+      CutValues      :  @local::stoppingmufiltercutvalues
+      OuterFV        :  @local::outerfv
+      TpcFV          :  @local::tpcfv
+      InnerFV        :  @local::innerfv
+      CalibrationPars:  @local::CalorimetryParameters_SPProd4_Data_r5770
+    }
+  } # analyzers
+
+  stream1: [ out1 ]
+  analysis: [ missingproductfilter, fembfilter, stopmufilter ]
+  trigger_paths: [ analysis ]
+  end_paths: [ stream1 ]
+} # physics
+
+
+outputs:
+{
+  out1:
+  {
+    module_type: RootOutput
+    dataTier: "stopmu_filtered"
+    fileName: "%ifb_%tc_stopmufilter.root"
+    SelectEvents: [ analysis ]
+  } # out1
+} # outputs
+
+physics.filters.fembfilter.LogLevel: 2
+
+services.SpaceCharge.EnableSimSpatialSCE: true
+services.SpaceCharge.EnableCorrSCE:       true
+services.SpaceCharge.EnableSimEfieldSCE:  true
+services.SpaceCharge.EnableSimulationSCE: true
+services.SpaceCharge.InputFilename: "SpaceChargeProtoDUNE/SCE_DataDriven_180kV_v3.root"
+

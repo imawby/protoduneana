@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+
+<!-- project details -->
+<!DOCTYPE project [
+<!ENTITY release "v09_31_00">
+<!ENTITY exp "dune">
+<!ENTITY run "5809">
+<!ENTITY files "1023">
+<!ENTITY name "tensionana_data_withfembfilter_Jan2022_&run;">
+<!ENTITY scratch_dir "/pnfs/&exp;/scratch/users/alister1/&name;">
+<!ENTITY resilient_dir "/pnfs/&exp;/resilient/users/alister1/">
+<!ENTITY data_dir "/pnfs/&exp;/scratch/users/alister1/&name;_datadir">
+]>
+
+<job>
+
+  <project name="&name;">
+
+    <!-- project size -->
+    <numevents>100000</numevents>
+
+    <!-- batchOS -->
+    <os>SL7</os>
+
+    <ups>protoduneana</ups>
+
+    <resource>DEDICATED,OPPORTUNISTIC</resource>
+
+    <!-- larsoft info -->
+    <larsoft>
+      <tag>&release;</tag>
+      <qual>e20:prof</qual>
+      <local>/pnfs/dune/scratch/users/alister1/dunetpc_v09_31_00_11.tar</local>
+    </larsoft>
+
+    <!-- filter -->
+    <stage name="tensionana">
+      <inputdef>protodune-sp_runset_&run;_reco2_v09_30_00_v0</inputdef>
+      <fcl>run_filter_and_tension_analysis.fcl</fcl>
+      <bookdir>&data_dir;</bookdir>
+      <workdir>&resilient_dir;&name;</workdir>
+      <outdir>&scratch_dir;</outdir>
+      <logdir>&scratch_dir;</logdir>
+      <numjobs>&files;</numjobs> <!-- 1028 -->
+      <numevents>10000</numevents>
+      <maxfilesperjob>1</maxfilesperjob>
+      <memory>3000</memory>
+      <datatier>tensionana</datatier>
+      <schema>root</schema>
+      <jobsub> --expected-lifetime=16h </jobsub>
+      <jobsub> --lines '+FERMIHTC_AutoRelease=True' </jobsub>
+      <jobsub> --lines '+FERMIHTC_GraceMemory=2048' </jobsub>
+      <jobsub> --lines '+FERMIHTC_GraceLifetime=4h' </jobsub>
+    </stage>
+                                                          
+  </project>
+
+</job>
