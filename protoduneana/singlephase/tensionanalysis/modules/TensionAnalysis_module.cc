@@ -134,6 +134,9 @@ class pdsp::TensionAnalysis : public art::EDAnalyzer {
     std::vector<double>* trackThetaXZ                             = nullptr; ///< track theta_xz angle
     std::vector<double>* trackThetaYZ                             = nullptr; ///< track theta_yz angle
     std::vector<double>* trackT0                                  = nullptr; ///< track reconstructed t_0
+    std::vector<int>*    trackNHitsPlane0                         = nullptr; ///< number of hits, plane 0
+    std::vector<int>*    trackNHitsPlane1                         = nullptr; ///< number of hits, plane 1
+    std::vector<int>*    trackNHitsPlane2                         = nullptr; ///< number of hits, plane 2
     std::vector< std::vector<float> >* trackHitRMS                = nullptr; ///< track-associated hit rms
     std::vector< std::vector<float> >* trackHitPeakTime           = nullptr; ///< track-associated hit peak times
     std::vector< std::vector<float> >* trackHitPeakAmplitude      = nullptr; ///< track-associated hit peak amplitudes
@@ -184,6 +187,10 @@ class pdsp::TensionAnalysis : public art::EDAnalyzer {
     int channelNumberAssociatedWires;                   ///< number of wires associated with the channel
     int channelAssociatedWiresPlane;                    ///< wire plane associated with this channel
     int channelAssociatedAPABuildNumber;                ///< APA build number associated with this channel
+
+    int numHitsPlane0; ///< number of hits associated with track on plane 0
+    int numHitsPlane1; ///< number of hits associated with track on plane 1
+    int numHitsPlane2; ///< number of hits associated with track on plane 2                                  
 
     std::vector<double>* channelAssociatedWiresLength     = nullptr; ///< geom length of wires associated with channel
     std::vector<double>* channelAssociatedWiresStartX     = nullptr; ///< geom start x position (drift direction) of wires
@@ -417,11 +424,18 @@ void pdsp::TensionAnalysis::analyze(art::Event const& e)
       MF_LOG_DEBUG("pdsp::TensionAnalysis::analyze")
         << "-- found " << theseHits.size() << " associated hits. looping.";
 
-      for (size_t iHit = 0; iHit < theseHits.size(); iHit++){
+      numHitsPlane0 = 0;
+      numHitsPlane1 = 0;
+      numHitsPlane2 = 0;
+     for (size_t iHit = 0; iHit < theseHits.size(); iHit++){
         MF_LOG_DEBUG("tmp") << __LINE__;
 
         art::Ptr< recob::Hit > thisHit = theseHits.at(iHit);
         MF_LOG_DEBUG("tmp") << __LINE__;
+
+        if      (thisHit->View() == 0) numHitsPlane0++;
+        else if (thisHit->View() == 1) numHitsPlane1++;
+        else if (thisHit->View() == 2) numHitsPlane2++;
 
         // get spacepoints, as they have a reconstructed 3d position which can be compared
         // against the 3d positions in the calorimetry object, and the end of the reconstructed
@@ -626,6 +640,10 @@ void pdsp::TensionAnalysis::analyze(art::Event const& e)
 
       }
 
+      trackNHitsPlane0 ->push_back(numHitsPlane0);
+      trackNHitsPlane1 ->push_back(numHitsPlane1);
+      trackNHitsPlane2 ->push_back(numHitsPlane2);
+
       trackHitRMS               -> push_back(tHitRMS);
       trackHitPeakTime          -> push_back(tHitPeakTime);
       trackHitPeakAmplitude     -> push_back(tHitPeakAmplitude);
@@ -697,6 +715,9 @@ void pdsp::TensionAnalysis::beginJob()
   anaTree->Branch("trackZenith"               , "std::vector< double >"             , &trackZenith);
   anaTree->Branch("trackThetaXZ"              , "std::vector< double >"             , &trackThetaXZ);
   anaTree->Branch("trackThetaYZ"              , "std::vector< double >"             , &trackThetaYZ);
+  anaTree->Branch("trackNHitsPlane0"          , "std::vector< int >"                , &trackNHitsPlane0);
+  anaTree->Branch("trackNHitsPlane1"          , "std::vector< int >"                , &trackNHitsPlane1);
+  anaTree->Branch("trackNHitsPlane2"          , "std::vector< int >"                , &trackNHitsPlane2);
   anaTree->Branch("trackT0"                   , "std::vector< double >"             , &trackT0);
   anaTree->Branch("trackHitRMS"               , "std::vector< std::vector<float> >" , &trackHitRMS);
   anaTree->Branch("trackHitPeakTime"          , "std::vector< std::vector<float> >" , &trackHitPeakTime);
@@ -926,6 +947,9 @@ void pdsp::TensionAnalysis::resizeVectors()
   trackZenith               -> resize(0);
   trackThetaXZ              -> resize(0);
   trackThetaYZ              -> resize(0);
+  trackNHitsPlane0          -> resize(0);
+  trackNHitsPlane1          -> resize(0);
+  trackNHitsPlane2          -> resize(0);
   trackT0                   -> resize(0);
   trackHitRMS               -> resize(0);
   trackHitPeakTime          -> resize(0);
