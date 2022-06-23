@@ -4,8 +4,8 @@
 <!DOCTYPE project [
 <!ENTITY release "v09_31_00">
 <!ENTITY exp "dune">
-<!ENTITY name "stopmu_data_withfembfilter">
-<!ENTITY ana_name "tensionana_stopmu_data_withfembfilter">
+<!ENTITY name "stopmu_data_withfembfilter_2022-06-21">
+<!ENTITY ana_name "tensionana_stopmu_data_2022-06-21">
 <!ENTITY scratch_dir "/pnfs/&exp;/scratch/users/alister1/&release;/&name;">
 <!ENTITY resilient_dir "/pnfs/&exp;/resilient/users/alister1/">
 <!ENTITY data_dir "/pnfs/&exp;/scratch/users/alister1/&name;_datadir">
@@ -32,19 +32,19 @@
     <larsoft>
       <tag>&release;</tag>
       <qual>e20:prof</qual>
-      <local>/pnfs/dune/scratch/users/alister1/dunetpc_v09_31_00.tar</local>
+      <local>/pnfs/dune/scratch/users/alister1/2022-06-21-tension.tar</local>
     </larsoft>
 
     <!-- filter -->
     <stage name="filter">
-      <inputdef>protodune-sp_runset_5826_reco2_v09_30_00_v0</inputdef>
-      <fcl>run_stopping_mu_filter_withallfembfilter.fcl</fcl>
+      <inputdef>protodune-sp_runset_5786_reco2_v09_30_00_v0</inputdef>
+      <fcl>run_stopping_mu_filter_withallfembfilter_loosecuts.fcl</fcl>
       <bookdir>&data_dir;</bookdir>
       <workdir>&resilient_dir;&name;</workdir>
       <outdir>&scratch_dir;</outdir>
       <logdir>&scratch_dir;</logdir>
-      <numjobs>1028</numjobs>
-      <numevents>1000</numevents>
+      <numjobs>1430</numjobs>
+      <numevents>10000</numevents>
       <maxfilesperjob>1</maxfilesperjob>
       <memory>6000</memory>
       <datatier>stopmufilter</datatier>

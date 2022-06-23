@@ -36,7 +36,7 @@ physics:
     {
       module_type    :  "StoppingMuFilter"
       ProducerLabels :  @local::stoppingmufilterproducerlabels
-      CutValues      :  @local::stoppingmufiltercutvalues
+      CutValues      :  @local::stoppingmufiltercutvalues_loosecuts
       OuterFV        :  @local::outerfv
       TpcFV          :  @local::tpcfv
       InnerFV        :  @local::innerfv

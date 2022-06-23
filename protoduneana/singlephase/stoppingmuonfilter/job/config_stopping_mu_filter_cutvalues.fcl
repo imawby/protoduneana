@@ -34,7 +34,7 @@ stoppingmufiltercutvalues:
   ThetaXZPlaneToCutOn: 2
 
   # do we want to cut on a specific plane for the
-  # theta_xyz selection, and if so which do we want to cut on?
+  # theta_yz selection, and if so which do we want to cut on?
   # For theta_yz we don't apply this, it's better to do it at
   # analysis level, but option is here just in case
   IsThetaYZCutInPlane: false
@@ -57,6 +57,14 @@ stoppingmufiltercutvalues:
   IsUseMinDistCut: true
   IsUseMinHitPeakTimeCut: true
   HitMinPeakTime: 2000
+}
+
+stoppingmufiltercutvalues_loosecuts:
+{
+  @table::stoppingmufiltercutvalues
+
+  IsThetaXZCutInPlane:    false
+  IsUseMinHitPeakTimeCut: false
 }
 
 END_PROLOG
