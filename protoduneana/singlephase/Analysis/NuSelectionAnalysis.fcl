@@ -1,0 +1,22 @@
+#include "ProtoDUNEEmptyEventFinder.fcl"
+#include "ProtoDUNEBeamCuts.fcl"
+#include "ProtoDUNEBeamlineUtils.fcl"
+
+BEGIN_PROLOG
+
+nuselectionanalysis:
+{
+  module_type:      "NuSelectionAnalysis"
+
+  CheckSlicesForBeam: false
+
+  PFParticleLabel:    "pandora"
+  TrackLabel:         "pandoraTrack"
+  ShowerLabel:        "pandoraShower"
+
+  EmptyEventFinder:   @local::standard_protoduneemptyeventfinder
+  BeamCuts:           @local::Prod2BeamCuts 
+  BeamlineUtils:      @local::standard_protodunebeamlineutils
+}
+
+END_PROLOG
