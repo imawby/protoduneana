@@ -1,6 +1,7 @@
 #include "ProtoDUNEEmptyEventFinder.fcl"
 #include "ProtoDUNEBeamCuts.fcl"
 #include "ProtoDUNEBeamlineUtils.fcl"
+#include "ProtoDUNECalibration.fcl"
 
 BEGIN_PROLOG
 
@@ -9,10 +10,18 @@ nuselectionanalysis:
   module_type:      "NuSelectionAnalysis"
 
   CheckSlicesForBeam: false
+  Recalibrate:        true
+
+  CalibrationParsSCE: @local::CalorimetryParameters_SPProd2_MC_SCE
+  CalibrationParsSCE: @local::CalorimetryParameters_SPProd2_MC_35ms
+
+  dEdX_template_name: "dEdxrestemplates.root"
 
   PFParticleLabel:    "pandora"
   TrackLabel:         "pandoraTrack"
   ShowerLabel:        "pandoraShower"
+  PIDLabel:           "warwickPID"
+  SCECaloLabel:       "pandoracalo"
 
   EmptyEventFinder:   @local::standard_protoduneemptyeventfinder
   BeamCuts:           @local::Prod2BeamCuts 

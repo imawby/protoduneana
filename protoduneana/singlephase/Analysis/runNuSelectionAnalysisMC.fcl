@@ -1,6 +1,8 @@
 #include "NuSelectionAnalysis.fcl"
 #include "services_dune.fcl"
 #include "ProtoDUNETruthBeamFilter.fcl"
+#include "calorimetry_pdune.fcl"
+#include "mvamodule.fcl"
 
 process_name: NuSelectionAna
 
@@ -39,12 +41,57 @@ source:
 physics:
 {
 
+ producers:
+ {
+
+   warwickPID: {
+        
+     module_type:		"MVAPID"
+     HitLabel:		    "hitpdune"
+     TrackLabel:		"pandoraTrack"
+     ShowerLabel:       "pandoraShower"
+     SpacePointLabel:	"pandora"
+
+     CalorimetryAlg:     @local::pdune_sp_calorimetryalgmc
+     MVAMethods:		[ "electron","muon","photon","pich","proton" ]
+     WeightFiles:		[ "mvapid_weights/electron_all_BDT.weights.xml",
+                          "mvapid_weights/muon_all_BDT.weights.xml",
+                          "mvapid_weights/photon_all_BDT.weights.xml",
+                          "mvapid_weights/pich_all_BDT.weights.xml",
+                          "mvapid_weights/proton_all_BDT.weights.xml" ]
+   }
+ }
+
  analyzers:
  {
   nuselectionana:          @local::nuselectionanalysis
  }
  
+ prod: [ warwickPID ]
+
+ trigger_paths: [ prod ] 
+
+ stream1:  [ out1 ]
+
  ana:  [ nuselectionana ]
  
- end_paths:     [ ana ]
+ #end_paths:     [ stream1, ana ]
+  end_paths:     [ ana ]
 }
+
+outputs:
+{
+  out1:
+  {
+    module_type: RootOutput
+    fileName: "outfile_%#.root"
+    dataTier:    "full-reconstructed"
+    fileProperties: {
+    maxInputFiles: 1
+    granularity: "InputFile"
+    }
+  }
+}
+
+
+physics.analyzers.nuselectionana.BeamlineUtils.BeamEventTag: generator
