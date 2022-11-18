@@ -17,11 +17,14 @@ nuselectionanalysis:
 
   dEdX_template_name: "dEdxrestemplates.root"
 
+  GeneratorLabel:     "generator"
   PFParticleLabel:    "pandora"
+  HitLabel:           "hitpdune"
   TrackLabel:         "pandoraTrack"
   ShowerLabel:        "pandoraShower"
   PIDLabel:           "warwickPID"
   SCECaloLabel:       "pandoracalo"
+  BeamLabel:          "generator"
 
   EmptyEventFinder:   @local::standard_protoduneemptyeventfinder
   BeamCuts:           @local::Prod2BeamCuts 

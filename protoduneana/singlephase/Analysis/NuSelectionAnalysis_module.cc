@@ -26,6 +26,9 @@
 #include "lardataobj/AnalysisBase/MVAPIDResult.h"
 #include "larcore/CoreUtils/ServiceUtil.h"
 #include "larevt/SpaceChargeServices/SpaceChargeService.h"
+#include "larcore/Geometry/Geometry.h"
+#include "lardata/DetectorInfoServices/DetectorPropertiesService.h"
+#include "dunecore/DuneObj/ProtoDUNEBeamEvent.h"
 
 // Utilities
 #include "protoduneana/Utilities/ProtoDUNEPFParticleUtils.h"
@@ -33,15 +36,15 @@
 #include "protoduneana/Utilities/ProtoDUNEBeamCuts.h"
 #include "protoduneana/Utilities/ProtoDUNEBeamlineUtils.h"
 #include "protoduneana/Utilities/ProtoDUNETrackUtils.h"
+#include "protoduneana/Utilities/ProtoDUNEShowerUtils.h"
 #include "protoduneana/Utilities/ProtoDUNECalibration.h"
+#include "protoduneana/Utilities/ProtoDUNETruthUtils.h"
 
 // ROOT includes
 #include "TTree.h"
+#include "TGraph.h"
 #include "TFile.h"
-
-// File Handling
-#include "cetlib/search_path.h"
-#include "cetlib/filesystem.h"
+#include "TSpline.h"
 
 namespace pduneana {
   class NuSelectionAnalysis;
@@ -68,20 +71,30 @@ public:
 
 private:
 
+  void FillTrueBeamParticleInfo(art::Event const& evt);
   const recob::PFParticle* GetRecoBeamParticle(art::Event const& evt);
   void FillBeamQualityCutsInfo(art::Event const& evt, const recob::PFParticle* beamPFParticle);
   void FillBeamParticlePIDInfo(art::Event const& evt, const recob::PFParticle* beamPFParticle);
+  void FillRecoBeamInfo(art::Event const& evt);
   void FillMuonBDTInfo(art::Event const& evt, const recob::PFParticle* beamPFParticle);
   void FillWarwickMVAInfo(art::Event const& evt, const art::Ptr<recob::Track> thisTrack);
-  void FillTrackDeflectionInfo(art::Event const& evt, const art::Ptr<recob::Track> thisTrack);
-  void FillChi2BDTInfo();
+  void FilldEdxInfo(art::Event const& evt, const recob::Track* thisTrack);
+  void FillTrackLengthInfo(art::Event const& evt, const recob::Track* thisTrack);
+  void FillTrackDeflectionInfo(art::Event const& evt, const recob::Track* thisTrack);
+  void FillMichelInfo(art::Event const& evt, const recob::PFParticle* beamPFParticle, const recob::Track* thisTrack);
+  void FillCandidateMichelEnergyInfo(art::Event const& evt, const recob::PFParticle* michelCandidate);
+  void FillCSDAScore(art::Event const& evt);
+
   bool IsMuonBDTSignal();
   bool IsMuonBDTBackground();
-  TFile * OpenFile(const std::string filename);
+  TVector3 ApplyPositionSCECorrection(const geo::Point_t &inputPosition);
 
   TTree *fTree;
   TTree *fMuonBDTSignalTree;
   TTree *fMuonBDTBackgroundTree;
+
+  TGraph * RvsKE;
+  TSpline3 * RvsKESpline;
 
   // Run information
   int fRun;
@@ -90,6 +103,13 @@ private:
   int fIsMC;
   int fIsReconstructableBeamEvent;
   bool fIsGoodBeamlineTrigger;
+
+  // Reco beam info
+  double fRecoBeamMomentum;
+
+  // True beam particle info
+  int fTrueBP_PDG;
+  double fTrueBeamMomentum;
 
   // Reco beam particle info
   int fRecoBP_passBeamQualityCuts; 
@@ -101,6 +121,7 @@ private:
   bool fRecoBP_passPionCuts;
   bool fRecoBP_passElectronCuts;
   bool fRecoBP_passProtonCuts;
+  double fRecoBP_CSDAScore;
 
   // Muon BDT variables (can't do a SCE version)
   double fRecoBP_EvalRatio_MuonBDT;
@@ -112,8 +133,10 @@ private:
   double fRecoBP_dEdxEnd_MuonBDT;
   double fRecoBP_dEdxEndRatio_MuonBDT;
   double fRecoBP_TrackLength_MuonBDT;
-  double fRecoBP_DeflecAngleSD_MuonBDT; //TODO
- 
+  double fRecoBP_DeflecAngleSD_MuonBDT;
+  double fRecoBP_candidateMichelNHits_MuonBDT;
+  double fRecoBP_candidateMichelEnergy_MuonBDT;
+
   // PID
   double fRecoBP_protonChi2;
   double fRecoBP_muonChi2;
@@ -123,21 +146,23 @@ private:
   bool fCheckSlicesForBeam;
   protoana::ProtoDUNECalibration fCalibrationSCE;
 
-  // I hate larsoft
-  std::map< int, TProfile* > dEdxTemplates;
-  std::string dEdxTemplateName;
-  TFile * dEdxTemplateFile;
-
   // From FHICL file
+  std::string fGeneratorLabel;
   std::string fPFParticleLabel;
+  std::string fHitLabel;
   std::string fTrackLabel;
   std::string fShowerLabel;
   std::string fPIDLabel; 
   std::string fSCECaloLabel;
+  std::string fBeamLabel;
   protoana::ProtoDUNEEmptyEventFinder fEmptyEventFinder;
   protoana::ProtoDUNEBeamCuts fBeamCuts;
   protoana::ProtoDUNEBeamlineUtils fBeamlineUtils;
   protoana::ProtoDUNETrackUtils fTrackUtil;
+  protoana::ProtoDUNEShowerUtils fShowerUtil;
+  protoana::ProtoDUNETruthUtils fTruthUtil;
+  protoana::ProtoDUNEPFParticleUtils fPFPUtil;
+  art::ServiceHandle<geo::Geometry> fGeometryService;
 
   // Used in the Chi2 PID
   std::vector<double> fCalibrated_dEdX;
@@ -150,22 +175,18 @@ pduneana::NuSelectionAnalysis::NuSelectionAnalysis(fhicl::ParameterSet const& ps
     fRecalibrate(pset.get< bool >("Recalibrate")),
     fCheckSlicesForBeam(pset.get< bool >("CheckSlicesForBeam")),
     fCalibrationSCE(pset.get< fhicl::ParameterSet >("CalibrationParsSCE")),
-    dEdxTemplateName(pset.get<std::string>("dEdX_template_name")),
+    fGeneratorLabel(pset.get< std::string >("GeneratorLabel")),
     fPFParticleLabel(pset.get< std::string >("PFParticleLabel")),
+    fHitLabel(pset.get< std::string >("HitLabel")),
     fTrackLabel(pset.get< std::string >("TrackLabel")),
     fShowerLabel(pset.get< std::string >("ShowerLabel")),
     fPIDLabel(pset.get< std::string >("PIDLabel")),
     fSCECaloLabel(pset.get< std::string >("SCECaloLabel")),
+    fBeamLabel(pset.get< std::string >("BeamLabel")),
     fEmptyEventFinder(pset.get< fhicl::ParameterSet >("EmptyEventFinder")),
     fBeamCuts(pset.get< fhicl::ParameterSet >("BeamCuts")),
     fBeamlineUtils(pset.get<fhicl::ParameterSet>("BeamlineUtils"))
 {
-    dEdxTemplateFile = OpenFile(dEdxTemplateName);
-    dEdxTemplates[ 211 ]  = (TProfile*)dEdxTemplateFile->Get( "dedx_range_pi"  );
-    dEdxTemplates[ 321 ]  = (TProfile*)dEdxTemplateFile->Get( "dedx_range_ka"  );
-    dEdxTemplates[ 13 ]   = (TProfile*)dEdxTemplateFile->Get( "dedx_range_mu"  );
-    dEdxTemplates[ 2212 ] = (TProfile*)dEdxTemplateFile->Get( "dedx_range_pro" );
-
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -188,6 +209,9 @@ void pduneana::NuSelectionAnalysis::analyze(art::Event const& evt)
     // Is this a good trigger?
     fIsGoodBeamlineTrigger = fBeamlineUtils.IsGoodBeamlineTrigger(evt);
 
+    FillRecoBeamInfo(evt);
+    FillTrueBeamParticleInfo(evt);
+
     // Get reconstructed beam particle
     const recob::PFParticle* beamPFParticle = GetRecoBeamParticle(evt);
 
@@ -205,11 +229,11 @@ void pduneana::NuSelectionAnalysis::analyze(art::Event const& evt)
 
     // Is track? Fill Pandizzle variables
     if (fRecoBP_isTrack)
+    {
         FillMuonBDTInfo(evt, beamPFParticle);
-
+        FillCSDAScore(evt);
+    }
     // Is shower? Fill Pandrizzle variables
-
-    FillChi2BDTInfo();
 
     // Fill trees
     fTree->Fill();
@@ -230,13 +254,31 @@ void pduneana::NuSelectionAnalysis::beginJob()
     fMuonBDTSignalTree = tfs->make<TTree>("MuonBDTSignalTree", "MuonBDTSignalTree");
     fMuonBDTBackgroundTree = tfs->make<TTree>("MuonBDTBackgroundTree", "MuonBDTBackgroundTree");
 
+    double range_cm[29] =
+            {9.833E-1, 1.786E0, 3.321E0, 6.598E0, 1.058E1, 3.084E1, 4.250E1, 6.732E1, 1.063E2, 1.725E2,
+             2.385E2,  4.934E2, 6.163E2, 8.552E2, 1.202E3, 1.758E3, 2.297E3, 4.359E3, 5.354E3, 7.298E3,
+             1.013E4,  1.469E4, 1.910E4, 3.558E4, 4.326E4, 5.768E4, 7.734E4, 1.060E5, 1.307E5};
+    
+    for (double& value : range_cm)
+      value /= 1.396; // convert to cm
+
+    double KE_MeV[29] = 
+      {10, 14, 20, 30, 40, 80, 100, 140, 200, 300, 400, 800, 1000, 1400, 2000, 3000, 4000, 8000, 10000, 14000,
+       20000, 30000, 40000, 80000, 100000, 140000, 200000, 300000, 400000};
+
+    RvsKE = tfs->make<TGraph>(29, KE_MeV, range_cm);
+    RvsKESpline = tfs->make<TSpline3>("RvsKES", RvsKE);
+
     fTree->Branch("Run", &fRun);
     fTree->Branch("Subrun", &fSubrun);
     fTree->Branch("Event", &fEvent);
     fTree->Branch("IsMC", &fIsMC);
     fTree->Branch("IsReconstructableBeamEvent", &fIsReconstructableBeamEvent);
     fTree->Branch("IsGoodBeamlineTrigger", &fIsGoodBeamlineTrigger);
-    fTree->Branch("checkSlicesForBeam", &fCheckSlicesForBeam);
+    fTree->Branch("CheckSlicesForBeam", &fCheckSlicesForBeam);
+    fTree->Branch("RecoBeamMomentum", &fRecoBeamMomentum);
+    fTree->Branch("TrueBeamMomentum", &fTrueBeamMomentum);
+    fTree->Branch("TrueBP_PDG", &fTrueBP_PDG);
     fTree->Branch("RecoBP_passBeamQualityCuts", &fRecoBP_passBeamQualityCuts);
     fTree->Branch("RecoBP_isTrack", &fRecoBP_isTrack);
     fTree->Branch("RecoBP_isShower", &fRecoBP_isShower);
@@ -246,6 +288,7 @@ void pduneana::NuSelectionAnalysis::beginJob()
     fTree->Branch("RecoBP_passPionCuts", &fRecoBP_passPionCuts);
     fTree->Branch("RecoBP_passElectronCuts", &fRecoBP_passElectronCuts);
     fTree->Branch("RecoBP_passProtonCuts", &fRecoBP_passProtonCuts);
+    fTree->Branch("RecoBP_CSDAScore", &fRecoBP_CSDAScore);
     fTree->Branch("RecoBP_protonChi2", &fRecoBP_protonChi2);
     fTree->Branch("RecoBP_muonChi2", &fRecoBP_muonChi2);
 
@@ -260,6 +303,8 @@ void pduneana::NuSelectionAnalysis::beginJob()
       tree->Branch("RecoBP_dEdxEndRatio_MuonBDT", &fRecoBP_dEdxEndRatio_MuonBDT);
       tree->Branch("RecoBP_TrackLength_MuonBDT", &fRecoBP_TrackLength_MuonBDT);
       tree->Branch("RecoBP_DeflecAngleSD_MuonBDT", &fRecoBP_DeflecAngleSD_MuonBDT);
+      tree->Branch("RecoBP_candidateMichelNHits_MuonBDT", &fRecoBP_candidateMichelNHits_MuonBDT);
+      tree->Branch("RecoBP_candidateMichelEnergy_MuonBDT", &fRecoBP_candidateMichelEnergy_MuonBDT);
     }
 }
 
@@ -272,6 +317,9 @@ void pduneana::NuSelectionAnalysis::reset()
   fEvent = -1;
   fIsMC = -1;
   fIsReconstructableBeamEvent = -1;
+  fRecoBeamMomentum = -999.0;
+  fTrueBP_PDG = -999;
+  fTrueBeamMomentum = -999.0;
   fRecoBP_passBeamQualityCuts = -1;
   fRecoBP_isTrack = false;
   fRecoBP_isShower = false;
@@ -281,6 +329,7 @@ void pduneana::NuSelectionAnalysis::reset()
   fRecoBP_passPionCuts = false;
   fRecoBP_passElectronCuts = false;
   fRecoBP_passProtonCuts = false;
+  fRecoBP_CSDAScore = -999.0;
   fRecoBP_EvalRatio_MuonBDT = -999.0;
   fRecoBP_Concentration_MuonBDT = -999.0;
   fRecoBP_CoreHaloRatio_MuonBDT = -999.0;
@@ -290,6 +339,8 @@ void pduneana::NuSelectionAnalysis::reset()
   fRecoBP_dEdxEndRatio_MuonBDT = -999.0;
   fRecoBP_TrackLength_MuonBDT = -999.0;
   fRecoBP_DeflecAngleSD_MuonBDT = -999.0;
+  fRecoBP_candidateMichelNHits_MuonBDT = -999.0;
+  fRecoBP_candidateMichelEnergy_MuonBDT = -999.0;
 
   fRecoBP_protonChi2 = -999.0;
   fRecoBP_muonChi2 = -999.0;
@@ -302,7 +353,50 @@ void pduneana::NuSelectionAnalysis::reset()
 
 void pduneana::NuSelectionAnalysis::endJob()
 {
-  dEdxTemplateFile->Close();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void pduneana::NuSelectionAnalysis::FillRecoBeamInfo(art::Event const& evt)
+{
+  // Get beam momentum
+  std::vector<art::Ptr<beam::ProtoDUNEBeamEvent>> beamEvents;
+  auto beamHandle = evt.getValidHandle<std::vector<beam::ProtoDUNEBeamEvent>>(fBeamLabel);
+  art::fill_ptr_vector(beamEvents, beamHandle);
+
+  if (beamEvents.empty())
+    return;
+
+  art::Ptr<beam::ProtoDUNEBeamEvent> beamEvent = beamEvents.at(0);
+
+  std::vector<double> momenta = beamEvent->GetRecoBeamMomenta(); 
+
+  if (momenta.empty())
+    return;
+
+  fRecoBeamMomentum = momenta.at(0);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void pduneana::NuSelectionAnalysis::FillTrueBeamParticleInfo(art::Event const& evt)
+{
+  if (evt.isRealData())
+    return;
+
+  // This gets the true beam particle that generated the event
+  const simb::MCParticle* trueBeamParticle = nullptr;
+
+  auto mcTruths = evt.getValidHandle<std::vector<simb::MCTruth>>(fGeneratorLabel);
+
+  trueBeamParticle = fTruthUtil.GetGeantGoodParticle((*mcTruths)[0], evt);
+
+  if (!trueBeamParticle)
+    return;
+
+  fTrueBP_PDG = trueBeamParticle->PdgCode();
+
+  fTrueBeamMomentum = trueBeamParticle->P();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -312,15 +406,13 @@ void pduneana::NuSelectionAnalysis::endJob()
 
 const recob::PFParticle* pduneana::NuSelectionAnalysis::GetRecoBeamParticle(art::Event const& evt)
 {
-  protoana::ProtoDUNEPFParticleUtils pfpUtil;
-
   // To set in this function
   const recob::PFParticle* beamPFParticle = nullptr;
 
   // If you want to accept Pandora's output
   if (!fCheckSlicesForBeam)
   {
-      std::vector<const recob::PFParticle*> beamParticles = pfpUtil.GetPFParticlesFromBeamSlice(evt, fPFParticleLabel);
+      std::vector<const recob::PFParticle*> beamParticles = fPFPUtil.GetPFParticlesFromBeamSlice(evt, fPFParticleLabel);
 
       if (beamParticles.size() > 0)
       {
@@ -338,7 +430,7 @@ const recob::PFParticle* pduneana::NuSelectionAnalysis::GetRecoBeamParticle(art:
   int nBeamParticles = 0;
   std::vector<std::vector<const recob::PFParticle*>> beamSlices;
 
-  const std::map<unsigned int, std::vector<const recob::PFParticle*>> sliceMap = pfpUtil.GetPFParticleSliceMap(evt, fPFParticleLabel);
+  const std::map<unsigned int, std::vector<const recob::PFParticle*>> sliceMap = fPFPUtil.GetPFParticleSliceMap(evt, fPFParticleLabel);
 
   for (auto slice : sliceMap)
   {
@@ -347,7 +439,7 @@ const recob::PFParticle* pduneana::NuSelectionAnalysis::GetRecoBeamParticle(art:
     for (auto slicePFParticle : slicePFParticles) 
     {
       bool added = false;
-      bool isBeamParticle = pfpUtil.IsBeamParticle(*slicePFParticle, evt, fPFParticleLabel);
+      bool isBeamParticle = fPFPUtil.IsBeamParticle(*slicePFParticle, evt, fPFParticleLabel);
 
       if (isBeamParticle)
       {
@@ -382,7 +474,7 @@ const recob::PFParticle* pduneana::NuSelectionAnalysis::GetRecoBeamParticle(art:
   {
       // Particles ordered in beam score order
       const recob::PFParticle* beamParticleCandidate = beamSlice.at(0); 
-      const TVector3 vtx = pfpUtil.GetPFParticleVertex(*beamParticleCandidate, evt, fPFParticleLabel, fTrackLabel);
+      const TVector3 vtx = fPFPUtil.GetPFParticleVertex(*beamParticleCandidate, evt, fPFParticleLabel, fTrackLabel);
 
       // Figure of merit (to be compared to the cut value)
       double fom = abs(vtx.Z() - 30.0); 
@@ -405,7 +497,7 @@ const recob::PFParticle* pduneana::NuSelectionAnalysis::GetRecoBeamParticle(art:
   }
   else
   {
-      std::vector<const recob::PFParticle*> beamParticles = pfpUtil.GetPFParticlesFromBeamSlice(evt, fPFParticleLabel);
+      std::vector<const recob::PFParticle*> beamParticles = fPFPUtil.GetPFParticlesFromBeamSlice(evt, fPFParticleLabel);
 
       if (beamParticles.size() > 0)
       {
@@ -421,11 +513,9 @@ const recob::PFParticle* pduneana::NuSelectionAnalysis::GetRecoBeamParticle(art:
 
 void pduneana::NuSelectionAnalysis::FillBeamQualityCutsInfo(art::Event const& evt, const recob::PFParticle* beamPFParticle)
 {
-  protoana::ProtoDUNEPFParticleUtils pfpUtil;
-
   // Determine if the beam particle is track-like or shower-like
-  const recob::Track* thisTrack = pfpUtil.GetPFParticleTrack(*beamPFParticle, evt, fPFParticleLabel, fTrackLabel);
-  const recob::Shower* thisShower = pfpUtil.GetPFParticleShower(*beamPFParticle, evt, fPFParticleLabel, fShowerLabel);
+  const recob::Track* thisTrack = fPFPUtil.GetPFParticleTrack(*beamPFParticle, evt, fPFParticleLabel, fTrackLabel);
+  const recob::Shower* thisShower = fPFPUtil.GetPFParticleShower(*beamPFParticle, evt, fPFParticleLabel, fShowerLabel);
 
   if (thisTrack)
   {
@@ -450,16 +540,14 @@ void pduneana::NuSelectionAnalysis::FillBeamQualityCutsInfo(art::Event const& ev
 
 void pduneana::NuSelectionAnalysis::FillBeamParticlePIDInfo(art::Event const& evt, const recob::PFParticle* beamPFParticle)
 {
-  protoana::ProtoDUNEPFParticleUtils pfpUtil;
-
   // Determine if the beam particle is track-like or shower-like
-  const recob::Track* thisTrack = pfpUtil.GetPFParticleTrack(*beamPFParticle, evt, fPFParticleLabel, fTrackLabel);
-  const recob::Shower* thisShower = pfpUtil.GetPFParticleShower(*beamPFParticle, evt, fPFParticleLabel, fShowerLabel);
+  const recob::Track* thisTrack = fPFPUtil.GetPFParticleTrack(*beamPFParticle, evt, fPFParticleLabel, fTrackLabel);
+  const recob::Shower* thisShower = fPFPUtil.GetPFParticleShower(*beamPFParticle, evt, fPFParticleLabel, fShowerLabel);
 
   if (thisTrack)
     fRecoBP_isTrack = true;
   else if (thisShower)
-      fRecoBP_isShower = true;
+    fRecoBP_isShower = true;
 
   // 1 here is for 1GeV
   const auto possibleParticles = fBeamlineUtils.GetPIDCandidates(evt, 1.0);
@@ -468,90 +556,21 @@ void pduneana::NuSelectionAnalysis::FillBeamParticlePIDInfo(art::Event const& ev
   fRecoBP_passPionCuts = possibleParticles.pion;
   fRecoBP_passElectronCuts = possibleParticles.electron;
   fRecoBP_passProtonCuts = possibleParticles.proton;
-
-  if (fRecoBP_isTrack)
-  {
-    // Calculate momentum according to CSDA range
-
-    trkf::TrackMomentumCalculator trackMomCalc;
-
-    fRecoBP_momentumByRangeMuonHyp = trackMomCalc.GetTrackMomentum(thisTrack->Length(), 13);
-    fRecoBP_momentumByRangeProtonHyp = trackMomCalc.GetTrackMomentum(thisTrack->Length(), 2212);
-  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void pduneana::NuSelectionAnalysis::FillMuonBDTInfo(art::Event const& evt, const recob::PFParticle* beamPFParticle)
 {
-  art::ValidHandle< std::vector<recob::PFParticle> > pfpListHandle = evt.getValidHandle<std::vector<recob::PFParticle>>(fPFParticleLabel);
-  const art::FindManyP<recob::Track> findTracks(pfpListHandle, evt, fTrackLabel);
-  const std::vector<art::Ptr<recob::Track>> pfpTracks = findTracks.at(beamPFParticle->Self());
+  const recob::Track* thisTrack = fPFPUtil.GetPFParticleTrack(*beamPFParticle, evt, fPFParticleLabel, fTrackLabel);
 
-  // Check that it is a track
-  if (pfpTracks.size() == 0)
-    return;
+  if (!thisTrack)
+      return;
 
-  // Determine if the beam particle is track-like or shower-like
-  art::Ptr<recob::Track> artTrack = pfpTracks.at(0);
-
-  //Primary Track Calorimetry
-  //SCE-corrected
-  protoana::ProtoDUNEPFParticleUtils pfpUtil;
-  const recob::Track* thisTrack = pfpUtil.GetPFParticleTrack(*beamPFParticle, evt, fPFParticleLabel, fTrackLabel);
-  auto trackCalo = fTrackUtil.GetRecoTrackCalorimetry(*thisTrack, evt, fTrackLabel, fSCECaloLabel);
-
-  //Get the correct plane (collection) because it's not always the same
-  bool foundCorrectPlane = false;
-  size_t index = 0;
-
-  for (size_t i = 0; i < trackCalo.size(); ++i) 
-  {
-      if (trackCalo[i].PlaneID().Plane == 2) 
-      {
-          foundCorrectPlane = true;
-          index = i;
-          break; 
-      }
-  }
-
-  if (foundCorrectPlane) 
-  {
-      fRecoBP_TrackLength_MuonBDT = trackCalo[index].Range();
-
-      auto calo_dEdX = trackCalo[index].dEdx();
-      auto calo_range = trackCalo[index].ResidualRange();
-
-      // First entry is at the end of the track (LArSoft hates you)
-      fRecoBP_dEdxStart_MuonBDT = calo_dEdX.back();
-      fRecoBP_dEdxEnd_MuonBDT = calo_dEdX.front();
-      fRecoBP_dEdxEndRatio_MuonBDT = calo_dEdX.at(0) / calo_dEdX.at(1);
-
-      if (fRecalibrate)
-      {
-        std::vector<float> new_dEdX = fCalibrationSCE.GetCalibratedCalorimetry(*thisTrack, evt, fTrackLabel, fSCECaloLabel, 2, -10.);
-
-        for( size_t i = 0; i < new_dEdX.size(); ++i )
-        {
-          fCalibrated_dEdX.push_back(new_dEdX[i]);
-          fResidualRange.push_back(calo_range[i]);
-        }
-      }
-      else
-      {
-        for (size_t i = 0; i < calo_dEdX.size(); ++i)
-        {
-          fCalibrated_dEdX.push_back(calo_dEdX[i]);
-          fResidualRange.push_back(calo_range[i]);
-        }
-      }
-  }
-
-  // Doesn't work with SCE
-  //fRecoBP_TrackLength_MuonBDT = thisTrack->Length(); 
-  //FillWarwickMVAInfo(evt, artTrack);
-
-  FillTrackDeflectionInfo(evt, artTrack);
+  FilldEdxInfo(evt, thisTrack);
+  FillTrackLengthInfo(evt, thisTrack);
+  FillTrackDeflectionInfo(evt, thisTrack);
+  FillMichelInfo(evt, beamPFParticle, thisTrack);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -580,8 +599,91 @@ void pduneana::NuSelectionAnalysis::FillWarwickMVAInfo(art::Event const& evt, co
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void pduneana::NuSelectionAnalysis::FilldEdxInfo(art::Event const& evt, const recob::Track* thisTrack)
+{
+  // Primary Track Calorimetry
+  // SCE-corrected
+  auto trackCalo = fTrackUtil.GetRecoTrackCalorimetry(*thisTrack, evt, fTrackLabel, fSCECaloLabel);
+
+  // Get the correct plane (collection) because it's not always the same
+  bool foundCorrectPlane = false;
+  size_t index = 0;
+
+  for (size_t i = 0; i < trackCalo.size(); ++i) 
+  {
+      if (trackCalo[i].PlaneID().Plane == 2) 
+      {
+          foundCorrectPlane = true;
+          index = i;
+          break; 
+      }
+  }
+
+  if (foundCorrectPlane) 
+  {
+      auto calo_dEdX = trackCalo[index].dEdx();
+      auto calo_range = trackCalo[index].ResidualRange();
+
+      if (fRecalibrate)
+      {
+        std::vector<float> new_dEdX = fCalibrationSCE.GetCalibratedCalorimetry(*thisTrack, evt, fTrackLabel, fSCECaloLabel, 2, -10.);
+
+        for( size_t i = 0; i < new_dEdX.size(); ++i )
+        {
+          fCalibrated_dEdX.push_back(new_dEdX[i]);
+          fResidualRange.push_back(calo_range[i]);
+        }
+      }
+      else
+      {
+        for (size_t i = 0; i < calo_dEdX.size(); ++i)
+        {
+          fCalibrated_dEdX.push_back(calo_dEdX[i]);
+          fResidualRange.push_back(calo_range[i]);
+        }
+      }
+  }
+
+  // First entry is at the end of the track (LArSoft hates you) but don't use end points
+  if (fCalibrated_dEdX.size() > 2)
+  {
+    fRecoBP_dEdxStart_MuonBDT = fCalibrated_dEdX.at(fCalibrated_dEdX.size() - 2);
+    fRecoBP_dEdxEnd_MuonBDT = fCalibrated_dEdX.at(1);
+  }
+
+  if (fCalibrated_dEdX.size() > 3)
+    fRecoBP_dEdxEndRatio_MuonBDT = fCalibrated_dEdX.at(1) / fCalibrated_dEdX.at(2);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void pduneana::NuSelectionAnalysis::FillTrackLengthInfo(art::Event const& evt, const recob::Track* thisTrack)
+{
+  // To correct for the SCE
+  auto sce = lar::providerFrom<spacecharge::SpaceChargeService>();
+
+  geo::Point_t startPoint = thisTrack->Start();
+  geo::Vector_t startOffset = sce->GetPosOffsets(startPoint);
+  TVector3 startPointSCE = TVector3(startPoint.X() - startOffset.X(), startPoint.Y() + startOffset.Y(), startPoint.Z() + startOffset.Z());
+
+  geo::Point_t endPoint = thisTrack->End();
+  geo::Vector_t endOffset = sce->GetPosOffsets(endPoint);
+  TVector3 endPointSCE = TVector3(endPoint.X() - endOffset.X(), endPoint.Y() + endOffset.Y(), endPoint.Z() + endOffset.Z());
+
+  TVector3 lengthVectorSCE = endPointSCE - startPointSCE;
+  double lengthSCE = sqrt((lengthVectorSCE.X() * lengthVectorSCE.X()) + (lengthVectorSCE.Y() * lengthVectorSCE.Y()) + (lengthVectorSCE.Z() * lengthVectorSCE.Z()));
+
+  std::cout << "HERE HERE HERE" << std::endl;
+
+
+  fRecoBP_TrackLength_MuonBDT = lengthSCE;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 // Totally copied from Dom, sass retained
-void pduneana::NuSelectionAnalysis::FillTrackDeflectionInfo(art::Event const& evt, const art::Ptr<recob::Track> thisTrack)
+void pduneana::NuSelectionAnalysis::FillTrackDeflectionInfo(art::Event const& evt, const recob::Track* thisTrack)
 {
   // To correct for the SCE
   auto sce = lar::providerFrom<spacecharge::SpaceChargeService>();
@@ -667,24 +769,170 @@ void pduneana::NuSelectionAnalysis::FillTrackDeflectionInfo(art::Event const& ev
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get the chi2-based PID for the SCE-corrected beam track
-void pduneana::NuSelectionAnalysis::FillChi2BDTInfo()
-{
-  // First do proton
-  std::pair<double, int> protonChi2 = fTrackUtil.Chi2PID(fCalibrated_dEdX, fResidualRange, dEdxTemplates[2212]);
-  fRecoBP_protonChi2 = protonChi2.first;
-  std::cout << "fRecoBP_protonChi2: " << fRecoBP_protonChi2 << std::endl;
 
-  // Now do muon
-  std::pair<double, int> muonChi2 = fTrackUtil.Chi2PID(fCalibrated_dEdX, fResidualRange, dEdxTemplates[13]);
-  fRecoBP_muonChi2 = muonChi2.first;
-  std::cout << "fRecoBP_muonChi2: " << fRecoBP_muonChi2 << std::endl;
+void pduneana::NuSelectionAnalysis::FillMichelInfo(art::Event const& evt, const recob::PFParticle* beamPFParticle, const recob::Track* thisTrack)
+{
+  // Need to find a Michel candidate
+  auto eventPFParticles = evt.getValidHandle<std::vector<recob::PFParticle>>(fPFParticleLabel);
+
+  // Why is particle physics so gendered -.-
+  std::vector<const recob::PFParticle*> childrenPFParticles;
+  for (size_t childID : beamPFParticle->Daughters())
+    childrenPFParticles.push_back(&eventPFParticles->at(childID));
+
+  if (childrenPFParticles.empty())
+    return;
+
+  // Need to find SCE corrected track start/end point
+  TVector3 trackEndpointSCE = ApplyPositionSCECorrection(thisTrack->End());
+
+  const recob::PFParticle* michelCandidate = nullptr;
+  double candidateSeparation = std::numeric_limits<double>::max();
+
+  for (const recob::PFParticle* childPFParticle : childrenPFParticles)
+  {
+    double separation = std::numeric_limits<double>::max();
+
+    const recob::Track* childTrack = fPFPUtil.GetPFParticleTrack(*childPFParticle, evt, fPFParticleLabel, fTrackLabel);
+
+    if (childTrack)
+    {
+      TVector3 childStartpointSCE = ApplyPositionSCECorrection(childTrack->Start());
+      separation = (childStartpointSCE - trackEndpointSCE).Mag();
+    }
+
+    const recob::Shower* childShower = fPFPUtil.GetPFParticleShower(*childPFParticle, evt, fPFParticleLabel, fShowerLabel);
+
+    if (childShower)
+    {
+      geo::Point_t showerStart(childShower->ShowerStart().X(), childShower->ShowerStart().Y(), childShower->ShowerStart().Z());
+      TVector3 childStartpointSCE = ApplyPositionSCECorrection(showerStart);
+      separation = (childStartpointSCE - trackEndpointSCE).Mag();
+    }
+
+    if ((separation < 2.f) && (separation < candidateSeparation))
+    {
+      candidateSeparation = separation;
+      michelCandidate = childPFParticle;
+    }
+  }
+
+  if (!michelCandidate)
+    return;
+
+  // Fill hit info
+  const std::vector<const recob::Hit*> michelHitVector = fPFPUtil.GetPFParticleHits(*michelCandidate, evt, fPFParticleLabel);
+  fRecoBP_candidateMichelNHits_MuonBDT = michelHitVector.size();
+
+  //Get shower energy
+  FillCandidateMichelEnergyInfo(evt, michelCandidate);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void pduneana::NuSelectionAnalysis::FillCandidateMichelEnergyInfo(art::Event const& evt, const recob::PFParticle* michelCandidate)
+{
+  const std::vector< art::Ptr< recob::Hit > > candidateMichelHits = fPFPUtil.GetPFParticleHits_Ptrs(*michelCandidate, evt, fPFParticleLabel);
+
+  // This is completely stolen from Jake
+  // For hit energy calculation we need position of each hit
+  // For some reason we have to find an average y, because sometimes y is non existant?
+  art::FindManyP<recob::SpacePoint> spFromHits(candidateMichelHits, evt, fHitLabel);
+
+  std::vector<double> xPositions, yPositions, zPositions;
+  double totalY = 0.;
+  int nGoodY = 0;
+
+  std::vector<art::Ptr<recob::Hit>> collectionHits;
+
+  auto const clockData = art::ServiceHandle<detinfo::DetectorClocksService>()->DataFor(evt);
+  auto const detProp =  art::ServiceHandle<detinfo::DetectorPropertiesService>()->DataFor(evt, clockData);
+
+  for (size_t iHit = 0; iHit < candidateMichelHits.size(); ++iHit) 
+  {
+      auto theHit = candidateMichelHits[iHit];
+
+      if (theHit->View() != 2) 
+        continue;
+
+      collectionHits.push_back(theHit);
+
+      double xPosition = detProp.ConvertTicksToX(theHit->PeakTime(), theHit->WireID().Plane, theHit->WireID().TPC, 0);
+      double zPosition = fGeometryService->Wire(theHit->WireID()).GetCenter().Z();
+
+      xPositions.push_back(xPosition);
+      zPositions.push_back(zPosition);
+
+      std::vector<art::Ptr<recob::SpacePoint>> sps = spFromHits.at(iHit);
+
+      if (!sps.empty()) 
+      {
+          yPositions.push_back(sps[0]->XYZ()[1]);
+          totalY += yPositions.back();
+          ++nGoodY;
+      }
+      else 
+      {
+          yPositions.push_back(-999.);
+      }
+  }
+
+  if (nGoodY == 0)
+    return;
+
+  double totalEnergy = 0.;
+
+  for (size_t iHit = 0; iHit < collectionHits.size(); ++iHit) 
+  {
+      auto theHit = collectionHits[iHit];
+
+      if (theHit->View() != 2) 
+        continue;
+
+      if (yPositions[iHit] < -100.)
+          yPositions[iHit] = totalY / nGoodY;
+
+      totalEnergy += fCalibrationSCE.HitToEnergy(collectionHits[iHit], xPositions[iHit], yPositions[iHit], zPositions[iHit]);
+  }
+
+  fRecoBP_candidateMichelEnergy_MuonBDT = totalEnergy;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void pduneana::NuSelectionAnalysis::FillCSDAScore(art::Event const& evt)
+{
+  // Convert to KE
+  double muonMass = 105.7;
+  double beamMomentum =  evt.isRealData() ? fRecoBeamMomentum : fTrueBeamMomentum;
+  double kineticEnergy = sqrt((1.e6 * beamMomentum * beamMomentum) + (muonMass * muonMass)) - muonMass;
+  double CSDARange = RvsKESpline->Eval(kineticEnergy);
+
+
+  std::cout << "beamMomentum: " << beamMomentum << std::endl;
+  std::cout << "kineticEnergy: " << kineticEnergy << std::endl;
+  std::cout << "CSDARange: " << CSDARange << std::endl;
+  std::cout << "fRecoBP_TrackLength_MuonBDT: " << fRecoBP_TrackLength_MuonBDT << std::endl;
+
+  // then divide SCE corrected track length by the CSDA range
+  fRecoBP_CSDAScore = fRecoBP_TrackLength_MuonBDT / CSDARange;
+
+  std::cout << "fRecoBP_CSDAScore: " << fRecoBP_CSDAScore << std::endl;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool pduneana::NuSelectionAnalysis::IsMuonBDTSignal()
 {
+  if (fIsReconstructableBeamEvent != 1)
+      return false;
+
+  if (!fIsGoodBeamlineTrigger)
+      return false;
+
+  if (!fRecoBP_passBeamQualityCuts)
+      return false;
+
   if (!fRecoBP_isTrack)
     return false;
 
@@ -701,6 +949,15 @@ bool pduneana::NuSelectionAnalysis::IsMuonBDTSignal()
 
 bool pduneana::NuSelectionAnalysis::IsMuonBDTBackground()
 {
+  if (fIsReconstructableBeamEvent != 1)
+      return false;
+
+  if (!fIsGoodBeamlineTrigger)
+      return false;
+
+  if (!fRecoBP_passBeamQualityCuts)
+      return false;
+
   if (!fRecoBP_isTrack)
     return false;
 
@@ -715,46 +972,14 @@ bool pduneana::NuSelectionAnalysis::IsMuonBDTBackground()
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-//To make auto-finding files easier for the dEdX template file
-TFile * pduneana::NuSelectionAnalysis::OpenFile(const std::string filename) 
-{
-  TFile * theFile = 0x0;
-  mf::LogInfo("pduneana::OpenFile") << "Searching for " << filename;
+TVector3 pduneana::NuSelectionAnalysis::ApplyPositionSCECorrection(const geo::Point_t &inputPosition)
+{ 
+  // To correct for the SCE
+  auto sce = lar::providerFrom<spacecharge::SpaceChargeService>();
 
-  if (cet::file_exists(filename)) 
-  {
-    mf::LogInfo("pduneana::OpenFile") << "File exists. Opening " << filename;
-    theFile = new TFile(filename.c_str());
-
-    if (!theFile ||theFile->IsZombie() || !theFile->IsOpen()) 
-    {
-      delete theFile;
-      theFile = 0x0;
-      throw cet::exception("PDSPAnalyzer_module.cc") << "Could not open " << filename;
-    }
-  }
-  else 
-  {
-    mf::LogInfo("pduneana::OpenFile") << "File does not exist here. Searching FW_SEARCH_PATH";
-    cet::search_path sp{"FW_SEARCH_PATH"};
-    std::string found_filename;
-    auto found = sp.find_file(filename, found_filename);
-
-    if (!found) 
-      throw cet::exception("PDSPAnalyzer_module.cc") << "Could not find " << filename;
-
-    mf::LogInfo("pduneana::OpenFile") << "Found file " << found_filename;
-    theFile = new TFile(found_filename.c_str());
-
-    if (!theFile ||theFile->IsZombie() || !theFile->IsOpen()) 
-    {
-      delete theFile;
-      theFile = 0x0;
-      throw cet::exception("PDSPAnalyzer_module.cc") << "Could not open " << found_filename;
-    }
-  }
-
-  return theFile;
+  geo::Vector_t offset = sce->GetPosOffsets(inputPosition);
+  return TVector3(inputPosition.X() - offset.X(), inputPosition.Y() + offset.Y(), inputPosition.Z() + offset.Z());
 }
+
 
 DEFINE_ART_MODULE(pduneana::NuSelectionAnalysis)
